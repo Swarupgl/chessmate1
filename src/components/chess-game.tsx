@@ -23,10 +23,13 @@ export function ChessGame() {
   const aiColor: Color = playerColor === 'w' ? 'b' : 'w';
   const fen = game.fen();
 
-  const updateGame = useCallback((modifier: (game: Chess) => void, fromFen?: string) => {
+  const updateGame = useCallback((modifier: (game: Chess) => boolean | void, fromFen?: string) => {
     setGame(prevGame => {
       const newGame = fromFen ? new Chess(fromFen) : new Chess(prevGame.fen());
-      modifier(newGame);
+      const shouldUpdate = modifier(newGame);
+      if (shouldUpdate === false) {
+        return prevGame;
+      }
       setBoard(newGame.board());
       setMoveHistory(newGame.history({ verbose: true }).map(move => move.san));
       return newGame;
@@ -82,9 +85,9 @@ export function ChessGame() {
     if (gameMode === 'pva' && currentPlayerColor !== playerColor) return;
 
     if (selectedSquare) {
-      try {
-        const move = { from: selectedSquare, to: square, promotion: 'q' };
-        updateGame(g => {
+      const move = { from: selectedSquare, to: square, promotion: 'q' }; // Auto-promote to queen for simplicity
+      updateGame(g => {
+        try {
           const result = g.move(move);
           if (!result) {
             const piece = g.get(square);
@@ -93,13 +96,21 @@ export function ChessGame() {
             } else {
               setSelectedSquare(null);
             }
+            return false; // Prevent state update if move is invalid but doesn't throw
           } else {
              setSelectedSquare(null);
           }
-        }, fen);
-      } catch (e) {
-        setSelectedSquare(null);
-      }
+        } catch (e) {
+            // This catches illegal move errors from chess.js
+            const piece = g.get(square);
+            if (piece && piece.color === currentPlayerColor) {
+              setSelectedSquare(square);
+            } else {
+              setSelectedSquare(null);
+            }
+            return false; // Prevent state update on error
+        }
+      }, fen);
     } else {
       const piece = game.get(square);
       if (piece && piece.color === currentPlayerColor) {
