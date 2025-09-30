@@ -1,7 +1,8 @@
 import type { Piece } from 'chess.js';
-import { Castle, Shield, Crown, Circle, LucidePawn } from 'lucide-react';
+import { Castle, Shield, Crown, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FaHorse } from 'react-icons/fa';
+import { PawnIcon } from './pawn-icon';
 
 interface ChessPieceProps {
   piece: Piece;
@@ -13,7 +14,7 @@ const pieceMap = {
   b: Shield,
   q: Crown,
   k: Circle,
-  p: LucidePawn,
+  p: PawnIcon,
 };
 
 export function ChessPiece({ piece }: ChessPieceProps) {
