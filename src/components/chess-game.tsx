@@ -1,28 +1,31 @@
 'use client';
 
 import { useState, useEffect, useMemo, useTransition, useCallback } from 'react';
-import { Chess, Square, Color } from 'chess.js';
+import { Chess, Square, Color, Piece } from 'chess.js';
 import Chessboard from '@/components/chessboard';
 import GameInfoPanel from '@/components/game-info-panel';
 import { makeAIMove } from '@/app/actions';
 import { useToast } from "@/hooks/use-toast";
 
+type GameMode = 'pvp' | 'pva';
+
 export function ChessGame() {
   const [game, setGame] = useState(new Chess());
-  const [board, setBoard] = useState(game.board());
+  const [board, setBoard] = useState<(Piece | null)[][]>(game.board());
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [aiReasoning, setAiReasoning] = useState<string>('');
   const [isAITurn, startTransition] = useTransition();
   const { toast } = useToast();
+  const [gameMode, setGameMode] = useState<GameMode>('pva');
+  const [playerColor, setPlayerColor] = useState<Color>('w');
 
-  const playerColor: Color = 'w';
-  const aiColor: Color = 'b';
+  const aiColor: Color = playerColor === 'w' ? 'b' : 'w';
   const fen = game.fen();
 
-  const updateGame = useCallback((modifier: (game: Chess) => void) => {
+  const updateGame = useCallback((modifier: (game: Chess) => void, fromFen?: string) => {
     setGame(prevGame => {
-      const newGame = new Chess(prevGame.fen());
+      const newGame = fromFen ? new Chess(fromFen) : new Chess(prevGame.fen());
       modifier(newGame);
       setBoard(newGame.board());
       setMoveHistory(newGame.history({ verbose: true }).map(move => move.san));
@@ -31,21 +34,19 @@ export function ChessGame() {
   }, []);
 
   const resetGame = useCallback(() => {
-    const newGame = new Chess();
-    setGame(newGame);
-    setBoard(newGame.board());
-    setMoveHistory([]);
+    updateGame(g => {
+      g.reset();
+    });
     setAiReasoning('');
     setSelectedSquare(null);
     toast({
       title: 'Game Reset',
       description: 'The board has been reset to the starting position.',
     });
-  }, [toast]);
+  }, [toast, updateGame]);
   
   useEffect(() => {
-    const gameInstance = new Chess(fen);
-    if (gameInstance.turn() === aiColor && !gameInstance.isGameOver()) {
+    if (gameMode === 'pva' && game.turn() === aiColor && !game.isGameOver()) {
       startTransition(async () => {
         const result = await makeAIMove(fen);
         if ('move' in result) {
@@ -61,7 +62,7 @@ export function ChessGame() {
             } else {
               setAiReasoning(result.reasoning);
             }
-          });
+          }, fen);
         } else {
           toast({
             title: "AI Error",
@@ -71,20 +72,23 @@ export function ChessGame() {
         }
       });
     }
-  }, [fen, aiColor, toast, updateGame]);
+  }, [fen, aiColor, toast, updateGame, gameMode, game]);
 
   const handleSquareClick = (square: Square) => {
-    if (game.turn() !== playerColor || isAITurn) return;
+    if (isAITurn && gameMode === 'pva') return;
+
+    const currentPlayerColor = game.turn();
+
+    if (gameMode === 'pva' && currentPlayerColor !== playerColor) return;
 
     if (selectedSquare) {
       try {
-        const move = { from: selectedSquare, to: square, promotion: 'q' }; // auto-promote to queen
+        const move = { from: selectedSquare, to: square, promotion: 'q' };
         updateGame(g => {
           const result = g.move(move);
           if (!result) {
-            // Not a valid move, so maybe they want to select another piece
             const piece = g.get(square);
-            if (piece && piece.color === playerColor) {
+            if (piece && piece.color === currentPlayerColor) {
               setSelectedSquare(square);
             } else {
               setSelectedSquare(null);
@@ -92,14 +96,13 @@ export function ChessGame() {
           } else {
              setSelectedSquare(null);
           }
-        });
+        }, fen);
       } catch (e) {
-        // Invalid move, potentially. Deselect.
         setSelectedSquare(null);
       }
     } else {
       const piece = game.get(square);
-      if (piece && piece.color === playerColor) {
+      if (piece && piece.color === currentPlayerColor) {
         setSelectedSquare(square);
       }
     }
@@ -120,6 +123,11 @@ export function ChessGame() {
     return "In Progress";
   }, [game]);
 
+  const handleGameModeChange = (mode: GameMode) => {
+    setGameMode(mode);
+    resetGame();
+  }
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 md:gap-8 justify-center items-start">
       <div className="w-full max-w-lg mx-auto lg:max-w-none lg:w-auto lg:mx-0">
@@ -128,7 +136,7 @@ export function ChessGame() {
           onSquareClick={handleSquareClick}
           selectedSquare={selectedSquare}
           possibleMoves={possibleMoves}
-          playerColor={playerColor}
+          playerColor={gameMode === 'pva' ? playerColor : game.turn()}
           lastMove={game.history({verbose: true}).slice(-1)[0]}
         />
       </div>
@@ -136,10 +144,12 @@ export function ChessGame() {
         <GameInfoPanel
           status={gameStatus}
           turn={game.turn()}
-          isAITurn={isAITurn}
+          isAITurn={isAITurn && gameMode === 'pva'}
           moveHistory={moveHistory}
           aiReasoning={aiReasoning}
           onReset={resetGame}
+          gameMode={gameMode}
+          onGameModeChange={handleGameModeChange}
         />
       </aside>
     </div>
