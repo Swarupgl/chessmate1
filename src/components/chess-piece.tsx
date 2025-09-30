@@ -1,18 +1,19 @@
 import type { Piece } from 'chess.js';
-import { ChessRook, ChessKnight, ChessBishop, ChessQueen, ChessKing, ChessPawn } from 'lucide-react';
+import { Castle, Shield, Crown, Circle, LucidePawn } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { FaHorse } from 'react-icons/fa';
 
 interface ChessPieceProps {
   piece: Piece;
 }
 
 const pieceMap = {
-  r: ChessRook,
-  n: ChessKnight,
-  b: ChessBishop,
-  q: ChessQueen,
-  k: ChessKing,
-  p: ChessPawn,
+  r: Castle,
+  n: FaHorse,
+  b: Shield,
+  q: Crown,
+  k: Circle,
+  p: LucidePawn,
 };
 
 export function ChessPiece({ piece }: ChessPieceProps) {
@@ -28,7 +29,7 @@ export function ChessPiece({ piece }: ChessPieceProps) {
             ? 'fill-[hsl(var(--piece-white-fill))] text-[hsl(var(--piece-white-stroke))]' 
             : 'fill-[hsl(var(--piece-black-fill))] text-[hsl(var(--piece-black-stroke))]'
         )}
-        strokeWidth={1}
+        strokeWidth={piece.type === 'n' ? 0 : 1}
       />
     </div>
   );
